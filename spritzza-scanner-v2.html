@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Spritzza · Scanner</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 6px; text-align: center; }
+    p { font-size: 13px; color: #888; text-align: center; margin-bottom: 16px; }
+    .screen { width: 100%; max-width: 400px; display: none; flex-direction: column; gap: 12px; padding-top: 40px; }
+    .screen.active { display: flex; }
+
+    /* PIN */
+    .pin-display { background: #fff; border: 1.5px solid #e0e0e0; border-radius: 12px; padding: 18px; text-align: center; font-size: 32px; font-weight: 700; letter-spacing: 12px; color: #1a1a1a; min-height: 64px; }
+    .pin-error { font-size: 12px; color: #e74c3c; text-align: center; min-height: 18px; }
+    .numpad { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .num-btn { padding: 18px; background: #fff; border: 1.5px solid #e0e0e0; border-radius: 10px; font-size: 20px; font-weight: 600; color: #1a1a1a; cursor: pointer; font-family: inherit; text-align: center; -webkit-tap-highlight-color: transparent; }
+    .num-btn:active { background: #f0f0f0; }
+    .num-btn.delete { font-size: 16px; color: #888; }
+    .num-btn.confirm { background: #EA581E; color: #fff; border-color: #EA581E; }
+    .num-btn.confirm:active { background: #c94a18; }
+
+    /* Mode selection */
+    .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mode-btn { padding: 24px 16px; border-radius: 12px; border: 2px solid #e0e0e0; background: #fff; cursor: pointer; text-align: center; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+    .mode-btn:active { opacity: 0.85; }
+    .mode-btn.earn { border-color: #EA581E; }
+    .mode-btn.earn:active { background: #fff5f2; }
+    .mode-btn.redeem { border-color: #1a1a1a; }
+    .mode-btn.redeem:active { background: #f5f5f5; }
+    .mode-icon { font-size: 32px; margin-bottom: 8px; }
+    .mode-title { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+    .mode-sub { font-size: 11px; color: #888; margin-top: 3px; }
+
+    /* Scanner */
+    #reader { width: 100%; border-radius: 12px; overflow: hidden; }
+    #reader2 { width: 100%; border-radius: 12px; overflow: hidden; }
+    .hint { font-size: 12px; color: #888; text-align: center; }
+    .staff-badge { background: #1a1a1a; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; text-align: center; }
+
+    /* Pizza */
+    .pizza-item { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1.5px solid #e0e0e0; border-radius: 10px; padding: 10px 14px; }
+    .pizza-name { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+    .pizza-price { font-size: 12px; color: #888; margin-top: 2px; }
+    .qty-control { display: flex; align-items: center; gap: 10px; }
+    .qty-btn { width: 28px; height: 28px; border-radius: 50%; background: #EA581E; color: #fff; border: none; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+    .qty-btn.minus { background: #e0e0e0; color: #888; }
+    .qty-num { font-size: 15px; font-weight: 700; color: #1a1a1a; min-width: 16px; text-align: center; }
+    .supplement-row { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1.5px solid #e0e0e0; border-radius: 10px; padding: 12px 14px; }
+    .supplement-label { font-size: 13px; color: #555; }
+    .supplement-input { width: 80px; padding: 6px 10px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-weight: 600; text-align: center; font-family: inherit; outline: none; }
+    .supplement-input:focus { border-color: #EA581E; }
+    .total-box { background: #EA581E; border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .total-label { font-size: 13px; color: rgba(255,255,255,0.8); }
+    .total-value { font-size: 20px; font-weight: 800; color: #fff; }
+    .total-pts { font-size: 12px; color: rgba(255,255,255,0.8); }
+
+    /* Redemption */
+    .points-balance-box { background: #1a1a1a; border-radius: 12px; padding: 16px; text-align: center; }
+    .points-balance-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+    .points-balance-value { font-size: 36px; font-weight: 800; color: #EA581E; }
+    .points-balance-sub { font-size: 11px; color: #666; margin-top: 4px; }
+    .reward-option { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1.5px solid #e0e0e0; border-radius: 10px; padding: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .reward-option:active { background: #f5f5f5; }
+    .reward-option.selected { border-color: #1a1a1a; background: #f9f9f9; }
+    .reward-option.disabled { opacity: 0.4; cursor: not-allowed; }
+    .reward-name { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+    .reward-pts-cost { font-size: 12px; color: #EA581E; font-weight: 700; margin-top: 2px; }
+    .reward-check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #e0e0e0; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+    .reward-check.checked { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+    .redeem-total-box { background: #1a1a1a; border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: center; }
+    .redeem-total-label { font-size: 13px; color: rgba(255,255,255,0.7); }
+    .redeem-total-value { font-size: 18px; font-weight: 800; color: #EA581E; }
+
+    /* Buttons */
+    .btn { width: 100%; padding: 15px; border-radius: 10px; border: none; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }
+    .btn-primary { background: #EA581E; color: #fff; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-dark { background: #1a1a1a; color: #fff; }
+    .btn-dark:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-ghost { background: #e0e0e0; color: #888; font-size: 13px; padding: 11px; }
+
+    /* Success / Error */
+    .success-box { background: #fff; border-radius: 12px; padding: 24px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+    .success-icon { font-size: 48px; }
+    .success-title { font-size: 18px; font-weight: 700; color: #1a1a1a; }
+    .success-sub { font-size: 13px; color: #888; line-height: 1.5; }
+    .error-box { background: #fff3f3; border: 1.5px solid #f8d7d7; border-radius: 12px; padding: 16px; text-align: center; font-size: 13px; color: #c0392b; }
+  </style>
+</head>
+<body>
+
+<!-- PIN SCREEN -->
+<div class="screen active" id="screen-pin">
+  <h2>🍕 Spritzza</h2>
+  <p>Entrez votre code d'accès</p>
+  <div class="pin-display" id="pin-display">​</div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="numpad">
+    <button class="num-btn" onclick="pinPress('1')">1</button>
+    <button class="num-btn" onclick="pinPress('2')">2</button>
+    <button class="num-btn" onclick="pinPress('3')">3</button>
+    <button class="num-btn" onclick="pinPress('4')">4</button>
+    <button class="num-btn" onclick="pinPress('5')">5</button>
+    <button class="num-btn" onclick="pinPress('6')">6</button>
+    <button class="num-btn" onclick="pinPress('7')">7</button>
+    <button class="num-btn" onclick="pinPress('8')">8</button>
+    <button class="num-btn" onclick="pinPress('9')">9</button>
+    <button class="num-btn delete" onclick="pinDelete()">⌫</button>
+    <button class="num-btn" onclick="pinPress('0')">0</button>
+    <button class="num-btn confirm" onclick="pinConfirm()">✓</button>
+  </div>
+</div>
+
+<!-- MODE SELECTION -->
+<div class="screen" id="screen-mode">
+  <div class="staff-badge" id="staff-badge-mode">👤 —</div>
+  <h2>Que souhaitez-vous faire ?</h2>
+  <div class="mode-grid">
+    <button class="mode-btn earn" onclick="selectMode('earn')">
+      <div class="mode-icon">➕</div>
+      <div class="mode-title">Ajouter des points</div>
+      <div class="mode-sub">Nouvelle commande</div>
+    </button>
+    <button class="mode-btn redeem" onclick="selectMode('redeem')">
+      <div class="mode-icon">🎁</div>
+      <div class="mode-title">Utiliser des points</div>
+      <div class="mode-sub">Échanger une récompense</div>
+    </button>
+  </div>
+  <button class="btn btn-ghost" onclick="resetToPin()">↩ Changer de compte</button>
+</div>
+
+<!-- SCAN SCREEN (earn) -->
+<div class="screen" id="screen-scan">
+  <div class="staff-badge" id="staff-badge">👤 —</div>
+  <h2>Scanner la carte client</h2>
+  <div id="reader"></div>
+  <p class="hint">Pointez vers le QR code de la carte fidélité</p>
+  <button class="btn btn-ghost" onclick="goToMode()">↩ Retour</button>
+</div>
+
+<!-- PIZZA SCREEN -->
+<div class="screen" id="screen-pizza">
+  <div class="staff-badge" id="staff-badge2">👤 —</div>
+  <h2>Commande du client</h2>
+  <div id="pizza-list"></div>
+  <div class="supplement-row">
+    <div class="supplement-label">Suppléments (€)</div>
+    <input type="number" class="supplement-input" id="supplement" value="0" min="0" step="0.5" oninput="updateTotal()">
+  </div>
+  <div class="total-box">
+    <div>
+      <div class="total-label">Total commande</div>
+      <div class="total-pts" id="points-label">= 0 points</div>
+    </div>
+    <div class="total-value" id="total-display">0.00 €</div>
+  </div>
+  <button class="btn btn-primary" id="confirm-btn" onclick="confirmOrder()" disabled>Confirmer et ajouter les points</button>
+  <button class="btn btn-ghost" onclick="resetToScan()">↩ Rescanner</button>
+</div>
+
+<!-- SCAN SCREEN (redeem) -->
+<div class="screen" id="screen-scan-redeem">
+  <div class="staff-badge" id="staff-badge-redeem">👤 —</div>
+  <h2>Scanner la carte client</h2>
+  <div id="reader2"></div>
+  <p class="hint">Pointez vers le QR code de la carte fidélité</p>
+  <button class="btn btn-ghost" onclick="goToMode()">↩ Retour</button>
+</div>
+
+<!-- REDEEM SCREEN -->
+<div class="screen" id="screen-redeem">
+  <div class="staff-badge" id="staff-badge3">👤 —</div>
+  <h2>Échanger des points</h2>
+  <div style="background:#1a1a1a;border-radius:10px;padding:14px;text-align:center;">
+    <div style="font-size:11px;color:#888;margin-bottom:4px;">Solde du client</div>
+    <div style="font-size:22px;font-weight:800;color:#EA581E;" id="redeem-balance-text">Chargement...</div>
+  </div>
+
+  <div id="reward-options"></div>
+
+  <div class="redeem-total-box">
+    <div class="redeem-total-label">Points à déduire</div>
+    <div class="redeem-total-value" id="redeem-total">0 pts</div>
+  </div>
+
+  <button class="btn btn-dark" id="redeem-btn" onclick="confirmRedeem()" disabled>Confirmer l'échange</button>
+  <button class="btn btn-ghost" onclick="goToMode()">↩ Retour</button>
+</div>
+
+<!-- SUCCESS SCREEN -->
+<div class="screen" id="screen-success">
+  <div class="success-box">
+    <div class="success-icon" id="success-icon">✅</div>
+    <div class="success-title" id="success-title">Points ajoutés !</div>
+    <div class="success-sub" id="success-msg">—</div>
+  </div>
+  <button class="btn btn-primary" onclick="nextClient()">Client suivant →</button>
+  <button class="btn btn-ghost" onclick="goToMode()">Même client</button>
+</div>
+
+<!-- ERROR SCREEN -->
+<div class="screen" id="screen-error">
+  <div class="error-box" id="error-msg">Une erreur est survenue.</div>
+  <button class="btn btn-primary" onclick="resetToScan()">Réessayer</button>
+  <button class="btn btn-ghost" onclick="resetToPin()">↩ Changer de compte</button>
+</div>
+
+<script>
+const AIRTABLE_TOKEN = 'PASTE_YOUR_TOKEN_HERE';
+const AIRTABLE_BASE = 'app6JP5PFxPrGRpVS';
+const AIRTABLE_TABLE = 'tbl7m5sBvDgyoo8P0';
+const WEBHOOK_EARN = 'https://hook.eu1.make.com/j8simbkde699mjkkd51losi4fvid07n6';
+const WEBHOOK_REDEEM = 'https://hook.eu1.make.com/j8simbkde699mjkkd51losi4fvid07n6';
+
+const STAFF_PINS = {
+  '1001': 'Gabriella',
+  '1002': 'Yorgos',
+  '1003': 'Damiano',
+  '1004': 'Emanuelle',
+  '1005': 'Davide',
+  '1006': 'Hans'
+};
+
+const PIZZAS = [
+  { name: 'Margherita', price: 12 },
+  { name: 'Chèvre miel', price: 13 },
+  { name: 'Reine', price: 14 },
+  { name: 'Diavola', price: 14 },
+  { name: 'Bufalina', price: 14 },
+  { name: '4 fromaggi', price: 15 },
+  { name: 'Au saumon', price: 16 },
+  { name: 'Au poulet', price: 16 },
+  { name: 'Tartufata', price: 18 },
+  { name: 'Burratina', price: 18 },
+  { name: 'Pesto', price: 18 },
+  { name: 'Spritzza', price: 18 }
+];
+
+const REWARDS = [
+  { name: 'Spritz offert', points: 50 },
+  { name: 'Pizza Incontournable offerte', points: 120 },
+  { name: 'Pizza Chaleureuse offerte', points: 150 },
+  { name: 'Pizza Séductrice offerte', points: 180 }
+];
+
+let currentStaff = null;
+let currentPassId = null;
+let currentMode = null;
+let currentClientPoints = 0;
+let selectedReward = null;
+let scanner = null;
+let scanner2 = null;
+let quantities = {};
+let pinValue = '';
+
+// PIN
+function pinPress(digit) {
+  if (pinValue.length >= 4) return;
+  pinValue += digit;
+  updatePinDisplay();
+  if (pinValue.length === 4) setTimeout(pinConfirm, 200);
+}
+
+function pinDelete() {
+  pinValue = pinValue.slice(0, -1);
+  updatePinDisplay();
+  document.getElementById('pin-error').textContent = '';
+}
+
+function updatePinDisplay() {
+  document.getElementById('pin-display').textContent = '●'.repeat(pinValue.length) + '​';
+}
+
+function pinConfirm() {
+  var name = STAFF_PINS[pinValue];
+  if (name) {
+    currentStaff = name;
+    ['staff-badge', 'staff-badge2', 'staff-badge3', 'staff-badge-mode', 'staff-badge-redeem'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = '👤 ' + name;
+    });
+    pinValue = '';
+    updatePinDisplay();
+    document.getElementById('pin-error').textContent = '';
+    show('screen-mode');
+  } else {
+    document.getElementById('pin-error').textContent = 'Code incorrect. Réessayez.';
+    pinValue = '';
+    updatePinDisplay();
+  }
+}
+
+function selectMode(mode) {
+  currentMode = mode;
+  if (mode === 'earn') {
+    show('screen-scan');
+    startScanner('reader', onEarnScan);
+  } else {
+    show('screen-scan-redeem');
+    startScanner('reader2', onRedeemScan);
+  }
+}
+
+function goToMode() {
+  stopAllScanners();
+  currentPassId = null;
+  selectedReward = null;
+  show('screen-mode');
+}
+
+// EARN FLOW
+function onEarnScan(decoded) {
+  currentPassId = decoded;
+  buildPizzaList();
+  show('screen-pizza');
+}
+
+function buildPizzaList() {
+  var list = document.getElementById('pizza-list');
+  list.innerHTML = '';
+  quantities = {};
+  PIZZAS.forEach(function(pizza, i) {
+    quantities[pizza.name] = 0;
+    var div = document.createElement('div');
+    div.className = 'pizza-item';
+    div.innerHTML =
+      '<div>' +
+        '<div class="pizza-name">' + pizza.name + '</div>' +
+        '<div class="pizza-price">' + pizza.price + ' €</div>' +
+      '</div>' +
+      '<div class="qty-control">' +
+        '<button class="qty-btn minus" onclick="changeQty(\'' + pizza.name + '\', -1)">−</button>' +
+        '<div class="qty-num" id="qty-' + i + '">0</div>' +
+        '<button class="qty-btn" onclick="changeQty(\'' + pizza.name + '\', 1)">+</button>' +
+      '</div>';
+    list.appendChild(div);
+  });
+  document.getElementById('supplement').value = 0;
+  updateTotal();
+}
+
+function changeQty(name, delta) {
+  quantities[name] = Math.max(0, (quantities[name] || 0) + delta);
+  var idx = PIZZAS.findIndex(function(p) { return p.name === name; });
+  document.getElementById('qty-' + idx).textContent = quantities[name];
+  updateTotal();
+}
+
+function updateTotal() {
+  var total = 0;
+  PIZZAS.forEach(function(pizza) { total += pizza.price * (quantities[pizza.name] || 0); });
+  var supplement = parseFloat(document.getElementById('supplement').value) || 0;
+  total += supplement;
+  var points = Math.floor(total);
+  document.getElementById('total-display').textContent = total.toFixed(2) + ' €';
+  document.getElementById('points-label').textContent = '= ' + points + ' points';
+  document.getElementById('confirm-btn').disabled = total <= 0;
+}
+
+async function confirmOrder() {
+  var total = 0;
+  var orderedPizzas = [];
+  PIZZAS.forEach(function(pizza) {
+    var qty = quantities[pizza.name] || 0;
+    if (qty > 0) {
+      total += pizza.price * qty;
+      orderedPizzas.push(pizza.name + ' x' + qty);
+    }
+  });
+  var supplement = parseFloat(document.getElementById('supplement').value) || 0;
+  total += supplement;
+  var points = Math.floor(total);
+  var btn = document.getElementById('confirm-btn');
+  btn.textContent = 'Envoi...';
+  btn.disabled = true;
+  try {
+    var r = await fetch(WEBHOOK_EARN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passId: currentPassId,
+        pointsToAdd: points,
+        amountSpent: total,
+        pizzas: orderedPizzas.join(', '),
+        supplement: supplement,
+        staff: currentStaff,
+        timestamp: new Date().toISOString()
+      })
+    });
+    if (r.ok) {
+      document.getElementById('success-icon').textContent = '✅';
+      document.getElementById('success-title').textContent = 'Points ajoutés !';
+      document.getElementById('success-msg').textContent = '+' + points + ' points. ' + orderedPizzas.join(', ') + '. Par ' + currentStaff + '.';
+      show('screen-success');
+    } else { throw new Error(); }
+  } catch(e) {
+    document.getElementById('error-msg').textContent = 'Erreur de connexion. Réessayez.';
+    show('screen-error');
+  }
+  btn.textContent = 'Confirmer et ajouter les points';
+  btn.disabled = false;
+}
+
+// REDEEM FLOW
+async function onRedeemScan(decoded) {
+  currentPassId = decoded;
+  document.getElementById('redeem-balance-text').textContent = 'Chargement...';
+  show('screen-redeem');
+  buildRewardOptions(0);
+  try {
+    var url = 'https://api.airtable.com/v0/' + AIRTABLE_BASE + '/' + AIRTABLE_TABLE +
+      '?filterByFormula=' + encodeURIComponent('{ID Client}="' + decoded + '"') +
+      '&fields[]=Solde%20de%20points';
+    var r = await fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + AIRTABLE_TOKEN }
+    });
+    var data = await r.json();
+    if (data.records && data.records.length > 0) {
+      currentClientPoints = data.records[0].fields['Solde de points'] || 0;
+      document.getElementById('redeem-balance-text').textContent = currentClientPoints + ' points disponibles';
+      buildRewardOptions(currentClientPoints);
+    } else {
+      document.getElementById('redeem-balance-text').textContent = 'Client non trouvé';
+    }
+  } catch(e) {
+    document.getElementById('redeem-balance-text').textContent = 'Erreur — vérifiez le solde manuellement';
+  }
+}
+
+function buildRewardOptions(availablePoints) {
+  var container = document.getElementById('reward-options');
+  container.innerHTML = '';
+  selectedReward = null;
+  document.getElementById('redeem-total').textContent = '0 pts';
+  document.getElementById('redeem-btn').disabled = true;
+
+  REWARDS.forEach(function(reward, i) {
+    var canAfford = availablePoints >= reward.points;
+    var div = document.createElement('div');
+    div.className = 'reward-option' + (canAfford ? '' : ' disabled');
+    div.id = 'reward-' + i;
+    div.innerHTML =
+      '<div>' +
+        '<div class="reward-name">' + reward.name + '</div>' +
+        '<div class="reward-pts-cost">−' + reward.points + ' points' + (canAfford ? '' : ' · Solde insuffisant') + '</div>' +
+      '</div>' +
+      '<div class="reward-check" id="check-' + i + '"></div>';
+    if (canAfford) {
+      div.onclick = function() { selectReward(i, reward); };
+    }
+    container.appendChild(div);
+  });
+}
+
+function selectReward(idx, reward) {
+  // Deselect all
+  REWARDS.forEach(function(r, i) {
+    var el = document.getElementById('reward-' + i);
+    var check = document.getElementById('check-' + i);
+    if (el) el.classList.remove('selected');
+    if (check) { check.classList.remove('checked'); check.textContent = ''; }
+  });
+  // Select this one
+  document.getElementById('reward-' + idx).classList.add('selected');
+  var check = document.getElementById('check-' + idx);
+  check.classList.add('checked');
+  check.textContent = '✓';
+  selectedReward = reward;
+  document.getElementById('redeem-total').textContent = '−' + reward.points + ' pts';
+  document.getElementById('redeem-btn').disabled = false;
+}
+
+async function confirmRedeem() {
+  if (!selectedReward) return;
+  var btn = document.getElementById('redeem-btn');
+  btn.textContent = 'Envoi...';
+  btn.disabled = true;
+  try {
+    var r = await fetch(WEBHOOK_REDEEM, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        passId: currentPassId,
+        pointsToRemove: selectedReward.points,
+        reward: selectedReward.name,
+        staff: currentStaff,
+        timestamp: new Date().toISOString()
+      })
+    });
+    if (r.ok) {
+      document.getElementById('success-icon').textContent = '🎁';
+      document.getElementById('success-title').textContent = 'Récompense accordée !';
+      document.getElementById('success-msg').textContent = selectedReward.name + ' — ' + selectedReward.points + ' points déduits. Par ' + currentStaff + '.';
+      show('screen-success');
+    } else { throw new Error(); }
+  } catch(e) {
+    document.getElementById('error-msg').textContent = 'Erreur de connexion. Réessayez.';
+    show('screen-error');
+  }
+  btn.textContent = 'Confirmer l\'échange';
+  btn.disabled = false;
+}
+
+// HELPERS
+function show(id) {
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
+
+function startScanner(readerId, callback) {
+  stopAllScanners();
+  var s = new Html5Qrcode(readerId);
+  if (readerId === 'reader') scanner = s;
+  else scanner2 = s;
+  s.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 220, height: 220 } },
+    function(decoded) {
+      s.stop().then(function() { callback(decoded); });
+    },
+    function() {}
+  ).catch(function() {
+    document.getElementById('error-msg').textContent = "Impossible d'accéder à la caméra.";
+    show('screen-error');
+  });
+}
+
+function stopAllScanners() {
+  if (scanner) { try { scanner.stop(); } catch(e){} scanner = null; }
+  if (scanner2) { try { scanner2.stop(); } catch(e){} scanner2 = null; }
+}
+
+function nextClient() {
+  currentPassId = null;
+  selectedReward = null;
+  stopAllScanners();
+  if (currentMode === 'earn') {
+    show('screen-scan');
+    startScanner('reader', onEarnScan);
+  } else {
+    show('screen-scan-redeem');
+    startScanner('reader2', onRedeemScan);
+  }
+}
+
+function resetToScan() {
+  currentPassId = null;
+  if (currentMode === 'earn') {
+    show('screen-scan');
+    startScanner('reader', onEarnScan);
+  } else {
+    show('screen-scan-redeem');
+    startScanner('reader2', onRedeemScan);
+  }
+}
+
+function resetToPin() {
+  currentStaff = null;
+  currentPassId = null;
+  currentMode = null;
+  selectedReward = null;
+  pinValue = '';
+  updatePinDisplay();
+  stopAllScanners();
+  show('screen-pin');
+}
+</script>
+</body>
+</html>
